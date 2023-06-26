@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import random
 import csv
 import pandas as pd
-
+#
 
 with open('DTI_avg_log.csv', 'r') as file:
     reader = csv.reader(file, delimiter=',')
