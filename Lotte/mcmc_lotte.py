@@ -95,27 +95,27 @@ def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, 
 
     return [means_mag, stds_mag, means_sus, stds_sus]
 
-@njit
-def count_function(combo, coordinate, spins_timeseries, t, probabilities):
-    """Counts the number of times a spin combination occurs in a timeseries of spin configurations.
-    """
-    [s_j, S_j, S_i] = combo
-    [i,j] = coordinate
-    [pSj, psj_Sj, pSj_Si, psj_Sj_Si] = probabilities
+# @njit
+# def count_function(combo, coordinate, spins_timeseries, t, probabilities):
+#     """Counts the number of times a spin combination occurs in a timeseries of spin configurations.
+#     """
+#     [s_j, S_j, S_i] = combo
+#     [i,j] = coordinate
+#     [pSj, psj_Sj, pSj_Si, psj_Sj_Si] = probabilities
 
-    if spins_timeseries[t-1][j] == S_j:
-        pSj += 1
+#     if spins_timeseries[t-1][j] == S_j:
+#         pSj += 1
 
-        if spins_timeseries[t-1][i] == S_i:
-            pSj_Si += 1
+#         if spins_timeseries[t-1][i] == S_i:
+#             pSj_Si += 1
 
-        if spins_timeseries[t][j] == s_j:
-            psj_Sj += 1
+#         if spins_timeseries[t][j] == s_j:
+#             psj_Sj += 1
 
-            if spins_timeseries[t-1][i] == S_i:
-                psj_Sj_Si += 1
+#             if spins_timeseries[t-1][i] == S_i:
+#                 psj_Sj_Si += 1
         
-    return [pSj, psj_Sj, pSj_Si, psj_Sj_Si]
+#     return [pSj, psj_Sj, pSj_Si, psj_Sj_Si]
 
 def conn_matrix_not_so_basic(n, fraction_of_zeros):
     """Returns nxn symmatric matrix for J with random numbers in [0,1]."""
@@ -142,17 +142,70 @@ def conn_matrix_not_so_basic(n, fraction_of_zeros):
             break
     return J
 
-@njit
-def get_probability(coordinate, spins_timeseries, combos):
-    """Calculates the probability of all possible spin combinations based on a timeseries of spin configurations."""
-    count_array = np.zeros((8, 4))
+# @njit
+# def get_probability(coordinate, spins_timeseries, combos):
+#     """Calculates the probability of all possible spin combinations based on a timeseries of spin configurations."""
+#     count_array = np.zeros((8, 4))
 
-    for t in range(1, len(spins_timeseries)):
-        for k, combo in enumerate(combos):
-            count_array[k] = count_function(combo, coordinate, spins_timeseries, t, count_array[k])
+#     for t in range(1, len(spins_timeseries)):
+#         for k, combo in enumerate(combos):
+#             count_array[k] = count_function(combo, coordinate, spins_timeseries, t, count_array[k])
+
+#     return count_array
+
+@njit
+def get_probability(coordinate, spins_timeseries):
+    """Computes counts for each combination of values in timeseries."""
+
+    # get coordinates
+    i,j = coordinate
+
+    # get "current" spin orientations for j
+    s_j = spins_timeseries[1:, j]
+
+    # get "past" spin orientations for i and j
+    S_j = spins_timeseries[:-1, j]
+    S_i = spins_timeseries[:-1, i]
+
+    count_array = np.zeros((8,4))
+
+    # compute pSj, psj_Sj, pSj_Si, psj_Sj_Si for all 8 combinations
+    i = 0
+    for j_1 in [-1,1]:
+        pSj = (S_j==j_1).sum()
+        for j_0 in [-1,1]:
+            psj_Sj = ((s_j==j_0) & (S_j==j_1)).sum()
+            for i_1 in [-1,1]:
+                pSj_Si = ((S_i==i_1) & (S_j==j_1)).sum()
+                psj_Sj_Si = ((s_j==j_0) & (S_j==j_1) & (S_i==i_1)).sum()
+                count_array[i] = np.array([pSj, psj_Sj, pSj_Si, psj_Sj_Si])
+                i += 1
 
     return count_array
-            
+
+@njit
+def TE(spins_timeseries, c_matrix):
+    """Computes transfer entropy for a Metropolis timeseries."""
+
+    c_total = 0
+
+    # loop through all nonzero connections
+    for coordinate in np.stack(c_matrix.nonzero(), axis=1):
+
+        # get counts for all 8 possible combinations
+        count_array = get_probability(coordinate, spins_timeseries)
+
+        # remove any row with a zero value
+        count_array = count_array[(count_array[:,3] != 0) & (count_array[:,2] != 0) & (count_array[:,1] != 0) & (count_array[:,0] != 0)]
+        
+        # convert to probabilities
+        prob = (count_array / (spins_timeseries.shape[0]-1)).T
+
+        # compute Cij
+        c = np.sum(prob[3] * np.log((prob[1] * prob[2]) / (prob[3] * prob[0])))
+        c_total += c
+
+    return c_total
 
 def plot_results(sim_data, T_list, sim_name, save=False):
     """Plots the results of a full simulation."""
