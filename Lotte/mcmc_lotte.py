@@ -28,6 +28,7 @@ def metropolis(spins, n_iterations, T, c_matrix):
     """Runs one run of the metropolis algorithm with temperature T."""
 
     magnetisation_list = np.zeros(n_iterations)
+    spins_timeseries = np.zeros((n_iterations, len(spins)))
 
     for i in range(n_iterations):
         diff, spin = energy_diff(spins, c_matrix)
@@ -42,16 +43,18 @@ def metropolis(spins, n_iterations, T, c_matrix):
                 spins[spin] *=-1
 
         magnetisation_list[i] = abs(np.mean(spins))
+        spins_timeseries[i] = spins
 
     # discard burn-in period and get mean of magnetization
-    magnetisation_list = magnetisation_list[1500:]
+    magnetisation_list = magnetisation_list[1000:]
     avg_magnetisation = np.mean(magnetisation_list) 
+    spins_timeseries = spins_timeseries[1000:]
     
     # calculate susceptibility
     mean_of_squared = np.mean(magnetisation_list**2)
     susceptibility = (mean_of_squared - avg_magnetisation**2)/T
 
-    return spins, avg_magnetisation, susceptibility
+    return spins, avg_magnetisation, susceptibility, spins_timeseries
 
 @njit
 def multi_metropolis(n_simulations, n_iterations, T, n, c_matrix):
@@ -59,6 +62,7 @@ def multi_metropolis(n_simulations, n_iterations, T, n, c_matrix):
 
     list_avg_magnetisation = np.zeros(n_simulations)
     list_sus = np.zeros(n_simulations)
+    
 
     for i in range(n_simulations):
 
@@ -67,7 +71,7 @@ def multi_metropolis(n_simulations, n_iterations, T, n, c_matrix):
         # c_matrix = conn_matrix_basic(n)
 
         # run metropolis
-        _, list_avg_magnetisation[i], list_sus[i] = metropolis(spins, n_iterations, T, c_matrix) 
+        _, list_avg_magnetisation[i], list_sus[i], spins_timeseries = metropolis(spins, n_iterations, T, c_matrix) 
 
     mean_magnet = np.mean(list_avg_magnetisation)
     std_magnet = np.std(list_avg_magnetisation)
@@ -90,6 +94,40 @@ def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, 
         means_mag[i], stds_mag[i], means_sus[i], stds_sus[i] = multi_metropolis(n_simulations, n_iterations, T, n, c_matrix)
 
     return [means_mag, stds_mag, means_sus, stds_sus]
+
+@njit
+def count_function(combo, coordinate, spins_timeseries, t, probabilities):
+    """Counts the number of times a spin combination occurs in a timeseries of spin configurations.
+    """
+    [s_j, S_j, S_i] = combo
+    [i,j] = coordinate
+    [pSj, psj_Sj, pSj_Si, psj_Sj_Si] = probabilities
+
+    if spins_timeseries[t-1][j] == S_j:
+        pSj += 1
+
+        if spins_timeseries[t-1][i] == S_i:
+            pSj_Si += 1
+
+        if spins_timeseries[t][j] == s_j:
+            psj_Sj += 1
+
+            if spins_timeseries[t-1][i] == S_i:
+                psj_Sj_Si += 1
+        
+    return [pSj, psj_Sj, pSj_Si, psj_Sj_Si]
+
+@njit
+def get_probability(coordinate, spins_timeseries, combos):
+    """Calculates the probability of all possible spin combinations based on a timeseries of spin configurations."""
+    count_array = np.zeros((8, 4))
+
+    for t in range(1, len(spins_timeseries)):
+        for k, combo in enumerate(combos):
+            count_array[k] = count_function(combo, coordinate, spins_timeseries, t, count_array[k])
+
+    return count_array
+            
 
 def plot_results(sim_data, T_list, sim_name, save=False):
     """Plots the results of a full simulation."""
@@ -117,3 +155,4 @@ def plot_results(sim_data, T_list, sim_name, save=False):
     if save:
         plt.savefig(f'output/{sim_name}_sus.png', bbox_inches='tight')
     plt.show()
+
