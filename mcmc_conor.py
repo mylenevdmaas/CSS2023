@@ -21,31 +21,34 @@ def conn_matrix_basic(n):
     J = np.zeros((n,n)) + J_tri + J_tri.T
     return J
 
-#@njit
-def conn_matrix_not_so_basic(n, fraction_of_zeros):
+@njit
+def conn_matrix_not_so_basic(n, fraction):
     """Returns nxn symmatric matrix for J with random numbers in [0,1]."""
     J_tri = np.tril(np.random.uniform(0, 1, size=(n, n)), -1)
+    destruction = np.random.uniform(0,1 , size = (n, n))
+    for i in range(len(J_tri)):
+        J_tri[i][destruction[i] > 1 - fraction] = 0
     J = np.zeros((n,n)) + J_tri + J_tri.T
-
-    f = int(np.floor(fraction_of_zeros*n*(n-1)/2))
-    removed = []
-    for i in range(f):
-        while True:
-            row = np.random.randint(0, n-1)
-            cols = [num for num in range(0, n) if num != row]  # to not include central diagonal
-            col = np.random.choice(cols)
-            entry = [row, col]
-            entry_T = [col, row]
-
-            if entry in removed or entry_T in removed:
-                continue
-        
-            J[row][col] = 0
-            J[col][row] = 0
-
-            removed.append(entry)
-            break
     return J
+
+def break_or_create_connection(input_matrix):
+    lower = np.tril(input_matrix, k=-1)
+    n = len(lower)
+    row = random.randint(1, n-1) 
+    column = random.randint(0, row-1)
+
+    print('change entry:', row, column)
+
+    if lower[row][column] == 0:
+        lower[row][column] = np.random.uniform(0,1)
+    else:
+        lower[row][column] = 0
+    
+    J = np.zeros((n,n)) + lower + lower.T
+
+    fraction_of_zeros = (n**2 - np.count_nonzero(J) - n)/(n**2 - n)   #n=90 here
+    return J, fraction_of_zeros
+
 
 @njit
 def random_spins(n):
@@ -126,9 +129,10 @@ def multi_metropolis(n_simulations, n_iterations, T, n, fraction_zeros, input_ma
     
     mean_sus = np.mean(list_sus)
     std_sus = np.std(list_sus)
-    
-    mean_corr_matrix = np.mean(list_model_corr, axis=0)
 
+    matrix_array = np.array(list_model_corr)
+    mean_corr_matrix = np.mean(matrix_array, axis=0)
+    
     return mean_magnet, std_magnet, mean_sus, std_sus, mean_corr_matrix, list_model_corr
     
 #@njit
@@ -141,13 +145,15 @@ def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, 
     means_sus = np.zeros(n_temp)
     stds_sus = np.zeros(n_temp)
     for i, T in enumerate(T_list):
+        #print(i)
         means_mag[i], stds_mag[i], means_sus[i], stds_sus[i], _, _ = multi_metropolis(n_simulations, n_iterations, T, n, fraction_zeros, input_matrix)
+    max_Tc_index = np.argmax(means_sus) #finds index of Tc
 
-    return [means_mag, stds_mag, means_sus, stds_sus]
+    return [means_mag, stds_mag, means_sus, stds_sus, max_Tc_index]
 
 def plot_results(sim_data, T_list, sim_name, save=False):
     """Plots the results of a full simulation."""
-    means_mag, stds_mag, means_sus, stds_sus = sim_data
+    means_mag, stds_mag, means_sus, stds_sus,_ = sim_data
     lower_bound = np.subtract(means_mag, stds_mag)
     upper_bound = np.add(means_mag, stds_mag)
     plt.plot(T_list, means_mag)
