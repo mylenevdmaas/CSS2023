@@ -117,6 +117,31 @@ def count_function(combo, coordinate, spins_timeseries, t, probabilities):
         
     return [pSj, psj_Sj, pSj_Si, psj_Sj_Si]
 
+def conn_matrix_not_so_basic(n, fraction_of_zeros):
+    """Returns nxn symmatric matrix for J with random numbers in [0,1]."""
+    J_tri = np.tril(np.random.uniform(0, 1, size=(n, n)), -1)
+    J = np.zeros((n,n)) + J_tri + J_tri.T
+
+    f = int(np.floor(fraction_of_zeros*n*(n-1)/2))
+    removed = []
+    for i in range(f):
+        while True:
+            row = np.random.randint(0, n-1)
+            cols = [num for num in range(0, n) if num != row]  # to not include central diagonal
+            col = np.random.choice(cols)
+            entry = [row, col]
+            entry_T = [col, row]
+
+            if entry in removed or entry_T in removed:
+                continue
+        
+            J[row][col] = 0
+            J[col][row] = 0
+
+            removed.append(entry)
+            break
+    return J
+
 @njit
 def get_probability(coordinate, spins_timeseries, combos):
     """Calculates the probability of all possible spin combinations based on a timeseries of spin configurations."""
@@ -141,8 +166,8 @@ def plot_results(sim_data, T_list, sim_name, save=False):
     plt.grid()
 
     if save:
-        plt.savefig(f'output/{sim_name}_M.png', bbox_inches='tight')
-    plt.show()
+        plt.savefig(f'{sim_name}_M.png', bbox_inches='tight')
+    plt.show()    
     
     lower_bound = np.subtract(means_sus, stds_sus)
     upper_bound = np.add(means_sus, stds_sus)
@@ -151,8 +176,10 @@ def plot_results(sim_data, T_list, sim_name, save=False):
     plt.xlabel('T')
     plt.ylabel('Susceptibility')
     plt.grid()
+    idx = np.argmax(sim_data[2])
+    plt.vlines(T_list[idx],  min(sim_data[2]), max(sim_data[2])*1.2, linestyles='dashed', color = 'r')
 
     if save:
-        plt.savefig(f'output/{sim_name}_sus.png', bbox_inches='tight')
+        plt.savefig(f'{sim_name}_sus.png', bbox_inches='tight')
     plt.show()
 
