@@ -7,6 +7,7 @@ def conn_matrix_basic(n):
     """Returns nxn symmatric matrix for J with random numbers in [0,1]."""
     J_tri = np.tril(np.random.uniform(0, 1, size=(n, n)), -1)
     J = np.zeros((n,n)) + J_tri + J_tri.T
+    # J = np.zeros((n,n)) + 0.5
     return J
 
 @njit
@@ -96,6 +97,7 @@ def plot_results(sim_data, T_list, sim_name, save=False):
     means_mag, stds_mag, means_sus, stds_sus = sim_data
     lower_bound = np.subtract(means_mag, stds_mag)
     upper_bound = np.add(means_mag, stds_mag)
+    plt.figure(figsize=[8,3])
     plt.plot(T_list, means_mag)
     plt.fill_between(T_list, lower_bound, upper_bound, alpha=0.3)
     plt.xlabel('T')
@@ -108,10 +110,11 @@ def plot_results(sim_data, T_list, sim_name, save=False):
     
     lower_bound = np.subtract(means_sus, stds_sus)
     upper_bound = np.add(means_sus, stds_sus)
+    plt.figure(figsize=[8,3])
     plt.plot(T_list, means_sus)
     plt.fill_between(T_list, lower_bound, upper_bound, alpha=0.3)
     plt.xlabel('T')
-    plt.ylabel('Susceptibility')
+    plt.ylabel(r'$\chi$')
     plt.grid()
 
     if save:
