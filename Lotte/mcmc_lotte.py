@@ -1,6 +1,7 @@
 import numpy as np
 from numba import njit
 import matplotlib.pyplot as plt
+import itertools
 
 @njit
 def conn_matrix_basic(n):
@@ -207,6 +208,129 @@ def TE(spins_timeseries, c_matrix):
 
     return c_total
 
+@njit
+def mutual_info(coordinate, spins_timeseries):
+    x,y = coordinate
+    x_list = spins_timeseries[:,x]
+    y_list = spins_timeseries[:,y]
+
+    count_array = np.zeros((4,3))
+    i = 0
+
+    for x in [-1,1]:
+        px = (x_list==x).sum()
+        for y in [-1,1]:
+            py = (y_list==y).sum()
+            pxy = ((x_list==x) & (y_list==y)).sum()
+            count_array[i] = np.array([px, py, pxy])
+            i += 1
+    
+    count_array = count_array[(count_array[:,2] != 0) & (count_array[:,1] != 0) & (count_array[:,0] != 0)]
+    prob = (count_array / len(spins_timeseries)).T
+
+    m_i = np.sum(prob[2] * np.log(prob[2] / (prob[0] * prob[1])))
+
+    return m_i
+
+@njit
+def con_mutual_info(coordinate, spins_timeseries):
+    x, y, z = coordinate
+
+    x_list = spins_timeseries[:,x]
+    y_list = spins_timeseries[:,y]
+    z_list = spins_timeseries[:,z]
+
+    count_array = np.zeros((8,4))
+    i = 0
+
+    for z in [-1,1]:
+        pz = (z_list==z).sum()
+        for x in [-1,1]:
+            pxz = ((x_list==x) & (z_list==z)).sum()
+            for y in [-1,1]:
+                pyz = ((y_list==y) & (z_list==z)).sum()
+                pxyz = ((x_list==x) & (y_list==y) & (z_list==z)).sum()
+                count_array[i] = np.array([pz, pxz, pyz, pxyz])
+                i += 1
+
+    # remove any row with a zero value
+    count_array = count_array[(count_array[:,3] != 0) & (count_array[:,2] != 0) & (count_array[:,1] != 0) & (count_array[:,0] != 0)]
+        
+    # convert to probabilities
+    prob = (count_array / (spins_timeseries.shape[0])).T
+
+    # compute conditional mutual info
+    cmi = np.sum(prob[3] * np.log((prob[3] * prob[0]) / (prob[1] * prob[2])))
+    
+    return cmi
+
+@njit
+def II_old(spins_timeseries, c_matrix, pairs):
+
+    n = len(c_matrix)
+    ii_total = 0
+
+    # get all connected pairs
+    # connected_pairs = np.stack(np.triu(c_matrix).nonzero(), axis=1)
+
+    # loop over pairs
+    for pair in pairs:
+
+        x,y = pair
+
+        # compute mutual info for pair
+        m_i = mutual_info(pair, spins_timeseries)
+
+        # loop over triplets with these pairs
+        for z in range(y+1,n):
+
+            # is z connected to x and y?
+            # if np.array([x,z]).isin(connected_pairs) and np.array([y,z]).isin(connected_pairs):
+
+            # compute conditional mutial info
+            cm_i = con_mutual_info(np.array([x,y,z]), spins_timeseries)
+
+            # add interaction information to total
+            ii_total += (m_i - cm_i)
+
+    return ii_total
+
+@njit
+def II(spins_timeseries, c_matrix):
+
+    # n = len(c_matrix)
+    ii_total = 0
+
+    # get all connected pairs
+    connected_pairs = np.stack(np.triu(c_matrix).nonzero(), axis=1)
+
+    # loop over pairs
+    for pair in connected_pairs:
+
+        x,y = pair
+
+        # compute mutual info for pair
+        m_i = mutual_info(pair, spins_timeseries)
+
+        # get all z that form a triplet with pair
+        z_x = connected_pairs[connected_pairs[:, 0]==x, 1]
+        z_y = connected_pairs[connected_pairs[:, 0]==y, 1]
+        z_list = np.intersect1d(z_x, z_y)
+
+        # loop over triplets with these pairs
+        for z in z_list:
+
+            # compute conditional mutial info
+            cm_i = con_mutual_info(np.array([x,y,z]), spins_timeseries)
+
+            # add interaction information to total
+            ii_total += (m_i - cm_i)
+
+    return ii_total
+
+def get_pairs(n):
+    return np.array(list(itertools.combinations(range(n), r=2)))
+
 def plot_results(sim_data, T_list, sim_name, save=False):
     """Plots the results of a full simulation."""
     means_mag, stds_mag, means_sus, stds_sus = sim_data
@@ -235,4 +359,3 @@ def plot_results(sim_data, T_list, sim_name, save=False):
     if save:
         plt.savefig(f'{sim_name}_sus.png', bbox_inches='tight')
     plt.show()
-
