@@ -1,6 +1,7 @@
 import numpy as np
 from numba import njit
 import matplotlib.pyplot as plt
+import itertools
 
 @njit
 def conn_matrix_basic(n):
@@ -95,39 +96,240 @@ def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, 
 
     return [means_mag, stds_mag, means_sus, stds_sus]
 
-@njit
-def count_function(combo, coordinate, spins_timeseries, t, probabilities):
-    """Counts the number of times a spin combination occurs in a timeseries of spin configurations.
-    """
-    [s_j, S_j, S_i] = combo
-    [i,j] = coordinate
-    [pSj, psj_Sj, pSj_Si, psj_Sj_Si] = probabilities
+# @njit
+# def count_function(combo, coordinate, spins_timeseries, t, probabilities):
+#     """Counts the number of times a spin combination occurs in a timeseries of spin configurations.
+#     """
+#     [s_j, S_j, S_i] = combo
+#     [i,j] = coordinate
+#     [pSj, psj_Sj, pSj_Si, psj_Sj_Si] = probabilities
 
-    if spins_timeseries[t-1][j] == S_j:
-        pSj += 1
+#     if spins_timeseries[t-1][j] == S_j:
+#         pSj += 1
 
-        if spins_timeseries[t-1][i] == S_i:
-            pSj_Si += 1
+#         if spins_timeseries[t-1][i] == S_i:
+#             pSj_Si += 1
 
-        if spins_timeseries[t][j] == s_j:
-            psj_Sj += 1
+#         if spins_timeseries[t][j] == s_j:
+#             psj_Sj += 1
 
-            if spins_timeseries[t-1][i] == S_i:
-                psj_Sj_Si += 1
+#             if spins_timeseries[t-1][i] == S_i:
+#                 psj_Sj_Si += 1
         
-    return [pSj, psj_Sj, pSj_Si, psj_Sj_Si]
+#     return [pSj, psj_Sj, pSj_Si, psj_Sj_Si]
+
+def conn_matrix_not_so_basic(n, fraction_of_zeros):
+    """Returns nxn symmatric matrix for J with random numbers in [0,1]."""
+    J_tri = np.tril(np.random.uniform(0, 1, size=(n, n)), -1)
+    J = np.zeros((n,n)) + J_tri + J_tri.T
+
+    f = int(np.floor(fraction_of_zeros*n*(n-1)/2))
+    removed = []
+    for i in range(f):
+        while True:
+            row = np.random.randint(0, n-1)
+            cols = [num for num in range(0, n) if num != row]  # to not include central diagonal
+            col = np.random.choice(cols)
+            entry = [row, col]
+            entry_T = [col, row]
+
+            if entry in removed or entry_T in removed:
+                continue
+        
+            J[row][col] = 0
+            J[col][row] = 0
+
+            removed.append(entry)
+            break
+    return J
+
+# @njit
+# def get_probability(coordinate, spins_timeseries, combos):
+#     """Calculates the probability of all possible spin combinations based on a timeseries of spin configurations."""
+#     count_array = np.zeros((8, 4))
+
+#     for t in range(1, len(spins_timeseries)):
+#         for k, combo in enumerate(combos):
+#             count_array[k] = count_function(combo, coordinate, spins_timeseries, t, count_array[k])
+
+#     return count_array
 
 @njit
-def get_probability(coordinate, spins_timeseries, combos):
-    """Calculates the probability of all possible spin combinations based on a timeseries of spin configurations."""
-    count_array = np.zeros((8, 4))
+def get_probability(coordinate, spins_timeseries):
+    """Computes counts for each combination of values in timeseries."""
 
-    for t in range(1, len(spins_timeseries)):
-        for k, combo in enumerate(combos):
-            count_array[k] = count_function(combo, coordinate, spins_timeseries, t, count_array[k])
+    # get coordinates
+    i,j = coordinate
+
+    # get "current" spin orientations for j
+    s_j = spins_timeseries[1:, j]
+
+    # get "past" spin orientations for i and j
+    S_j = spins_timeseries[:-1, j]
+    S_i = spins_timeseries[:-1, i]
+
+    count_array = np.zeros((8,4))
+
+    # compute pSj, psj_Sj, pSj_Si, psj_Sj_Si for all 8 combinations
+    i = 0
+    for j_1 in [-1,1]:
+        pSj = (S_j==j_1).sum()
+        for j_0 in [-1,1]:
+            psj_Sj = ((s_j==j_0) & (S_j==j_1)).sum()
+            for i_1 in [-1,1]:
+                pSj_Si = ((S_i==i_1) & (S_j==j_1)).sum()
+                psj_Sj_Si = ((s_j==j_0) & (S_j==j_1) & (S_i==i_1)).sum()
+                count_array[i] = np.array([pSj, psj_Sj, pSj_Si, psj_Sj_Si])
+                i += 1
 
     return count_array
-            
+
+@njit
+def TE(spins_timeseries, c_matrix):
+    """Computes transfer entropy for a Metropolis timeseries."""
+
+    c_total = 0
+
+    # loop through all nonzero connections
+    for coordinate in np.stack(c_matrix.nonzero(), axis=1):
+
+        # get counts for all 8 possible combinations
+        count_array = get_probability(coordinate, spins_timeseries)
+
+        # remove any row with a zero value
+        count_array = count_array[(count_array[:,3] != 0) & (count_array[:,2] != 0) & (count_array[:,1] != 0) & (count_array[:,0] != 0)]
+        
+        # convert to probabilities
+        prob = (count_array / (spins_timeseries.shape[0]-1)).T
+
+        # compute Cij
+        c = np.sum(prob[3] * np.log((prob[1] * prob[2]) / (prob[3] * prob[0])))
+        c_total += c
+
+    return c_total
+
+@njit
+def mutual_info(coordinate, spins_timeseries):
+    x,y = coordinate
+    x_list = spins_timeseries[:,x]
+    y_list = spins_timeseries[:,y]
+
+    count_array = np.zeros((4,3))
+    i = 0
+
+    for x in [-1,1]:
+        px = (x_list==x).sum()
+        for y in [-1,1]:
+            py = (y_list==y).sum()
+            pxy = ((x_list==x) & (y_list==y)).sum()
+            count_array[i] = np.array([px, py, pxy])
+            i += 1
+    
+    count_array = count_array[(count_array[:,2] != 0) & (count_array[:,1] != 0) & (count_array[:,0] != 0)]
+    prob = (count_array / len(spins_timeseries)).T
+
+    m_i = np.sum(prob[2] * np.log(prob[2] / (prob[0] * prob[1])))
+
+    return m_i
+
+@njit
+def con_mutual_info(coordinate, spins_timeseries):
+    x, y, z = coordinate
+
+    x_list = spins_timeseries[:,x]
+    y_list = spins_timeseries[:,y]
+    z_list = spins_timeseries[:,z]
+
+    count_array = np.zeros((8,4))
+    i = 0
+
+    for z in [-1,1]:
+        pz = (z_list==z).sum()
+        for x in [-1,1]:
+            pxz = ((x_list==x) & (z_list==z)).sum()
+            for y in [-1,1]:
+                pyz = ((y_list==y) & (z_list==z)).sum()
+                pxyz = ((x_list==x) & (y_list==y) & (z_list==z)).sum()
+                count_array[i] = np.array([pz, pxz, pyz, pxyz])
+                i += 1
+
+    # remove any row with a zero value
+    count_array = count_array[(count_array[:,3] != 0) & (count_array[:,2] != 0) & (count_array[:,1] != 0) & (count_array[:,0] != 0)]
+        
+    # convert to probabilities
+    prob = (count_array / (spins_timeseries.shape[0])).T
+
+    # compute conditional mutual info
+    cmi = np.sum(prob[3] * np.log((prob[3] * prob[0]) / (prob[1] * prob[2])))
+    
+    return cmi
+
+@njit
+def II_old(spins_timeseries, c_matrix, pairs):
+
+    n = len(c_matrix)
+    ii_total = 0
+
+    # get all connected pairs
+    # connected_pairs = np.stack(np.triu(c_matrix).nonzero(), axis=1)
+
+    # loop over pairs
+    for pair in pairs:
+
+        x,y = pair
+
+        # compute mutual info for pair
+        m_i = mutual_info(pair, spins_timeseries)
+
+        # loop over triplets with these pairs
+        for z in range(y+1,n):
+
+            # is z connected to x and y?
+            # if np.array([x,z]).isin(connected_pairs) and np.array([y,z]).isin(connected_pairs):
+
+            # compute conditional mutial info
+            cm_i = con_mutual_info(np.array([x,y,z]), spins_timeseries)
+
+            # add interaction information to total
+            ii_total += (m_i - cm_i)
+
+    return ii_total
+
+@njit
+def II(spins_timeseries, c_matrix):
+
+    # n = len(c_matrix)
+    ii_total = 0
+
+    # get all connected pairs
+    connected_pairs = np.stack(np.triu(c_matrix).nonzero(), axis=1)
+
+    # loop over pairs
+    for pair in connected_pairs:
+
+        x,y = pair
+
+        # compute mutual info for pair
+        m_i = mutual_info(pair, spins_timeseries)
+
+        # get all z that form a triplet with pair
+        z_x = connected_pairs[connected_pairs[:, 0]==x, 1]
+        z_y = connected_pairs[connected_pairs[:, 0]==y, 1]
+        z_list = np.intersect1d(z_x, z_y)
+
+        # loop over triplets with these pairs
+        for z in z_list:
+
+            # compute conditional mutial info
+            cm_i = con_mutual_info(np.array([x,y,z]), spins_timeseries)
+
+            # add interaction information to total
+            ii_total += (m_i - cm_i)
+
+    return ii_total
+
+def get_pairs(n):
+    return np.array(list(itertools.combinations(range(n), r=2)))
 
 def plot_results(sim_data, T_list, sim_name, save=False):
     """Plots the results of a full simulation."""
@@ -141,8 +343,8 @@ def plot_results(sim_data, T_list, sim_name, save=False):
     plt.grid()
 
     if save:
-        plt.savefig(f'output/{sim_name}_M.png', bbox_inches='tight')
-    plt.show()
+        plt.savefig(f'{sim_name}_M.png', bbox_inches='tight')
+    plt.show()    
     
     lower_bound = np.subtract(means_sus, stds_sus)
     upper_bound = np.add(means_sus, stds_sus)
@@ -151,8 +353,9 @@ def plot_results(sim_data, T_list, sim_name, save=False):
     plt.xlabel('T')
     plt.ylabel('Susceptibility')
     plt.grid()
+    idx = np.argmax(sim_data[2])
+    plt.vlines(T_list[idx],  min(sim_data[2]), max(sim_data[2])*1.2, linestyles='dashed', color = 'r')
 
     if save:
-        plt.savefig(f'output/{sim_name}_sus.png', bbox_inches='tight')
+        plt.savefig(f'{sim_name}_sus.png', bbox_inches='tight')
     plt.show()
-
