@@ -11,6 +11,16 @@ def conn_matrix_basic(n):
     return J
 
 @njit
+def conn_matrix_not_so_basic(n, fraction):
+    """Returns nxn symmatric matrix for J with random numbers in [0,1]."""
+    J_tri = np.tril(np.random.uniform(0, 1, size=(n, n)), -1)
+    destruction = np.random.uniform(0,1 , size = (n, n))
+    for i in range(len(J_tri)):
+        J_tri[i][destruction[i] > 1 - fraction] = 0
+    J = np.zeros((n,n)) + J_tri + J_tri.T
+    return J
+
+@njit
 def random_spins(n):
     """Returns array of n spins in random configuration of -1 and 1."""
     values = np.random.randint(0, 2, size=n)
@@ -118,30 +128,6 @@ def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, 
         
 #     return [pSj, psj_Sj, pSj_Si, psj_Sj_Si]
 
-def conn_matrix_not_so_basic(n, fraction_of_zeros):
-    """Returns nxn symmatric matrix for J with random numbers in [0,1]."""
-    J_tri = np.tril(np.random.uniform(0, 1, size=(n, n)), -1)
-    J = np.zeros((n,n)) + J_tri + J_tri.T
-
-    f = int(np.floor(fraction_of_zeros*n*(n-1)/2))
-    removed = []
-    for i in range(f):
-        while True:
-            row = np.random.randint(0, n-1)
-            cols = [num for num in range(0, n) if num != row]  # to not include central diagonal
-            col = np.random.choice(cols)
-            entry = [row, col]
-            entry_T = [col, row]
-
-            if entry in removed or entry_T in removed:
-                continue
-        
-            J[row][col] = 0
-            J[col][row] = 0
-
-            removed.append(entry)
-            break
-    return J
 
 # @njit
 # def get_probability(coordinate, spins_timeseries, combos):
