@@ -168,7 +168,7 @@ def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, 
     return [means_mag, stds_mag, means_sus, stds_sus]
 
 @njit
-def run_simulation_diff_connectivity(n_simulations:int, n_iterations:int, T_list:np.array, n:int, c_matrix_fun=conn_matrix_basic, c_matrix_arg:float=0.5, burn_in:int=1000):
+def run_simulation_diff_connectivity(n_simulations:int, n_iterations:int, T_list:np.array, n:int, c_matrix_fun=mean_matrix, c_matrix_arg:float=0.5, burn_in:int=1000):
     """Runs metropolis simulations for every temperature in a list of temperatures."""
     n_temp = len(T_list)
 
