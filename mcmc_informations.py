@@ -42,7 +42,7 @@ def energy_diff(spins:np.array, c_matrix):
     return delta_E, pos
 
 @njit
-def metropolis(spins, n_iterations, T, c_matrix):
+def metropolis(spins, n_iterations, T, c_matrix, burn_in):
     """Runs one run of the metropolis algorithm with temperature T."""
 
     magnetisation_list = np.zeros(n_iterations)
@@ -64,9 +64,9 @@ def metropolis(spins, n_iterations, T, c_matrix):
         spins_timeseries[i] = spins
 
     # discard burn-in period and get mean of magnetization
-    magnetisation_list = magnetisation_list[1000:]
+    magnetisation_list = magnetisation_list[burn_in:]
     avg_magnetisation = np.mean(magnetisation_list) 
-    spins_timeseries = spins_timeseries[1000:]
+    spins_timeseries = spins_timeseries[burn_in:]
     
     # calculate susceptibility
     mean_of_squared = np.mean(magnetisation_list**2)
@@ -75,7 +75,7 @@ def metropolis(spins, n_iterations, T, c_matrix):
     return spins, avg_magnetisation, susceptibility, spins_timeseries
 
 @njit
-def multi_metropolis(n_simulations, n_iterations, T, n, c_matrix):
+def multi_metropolis(n_simulations, n_iterations, T, n, c_matrix, burn_in):
     """Runs n_simulations runs of the metropolis algorithm."""
 
     list_avg_magnetisation = np.zeros(n_simulations)
@@ -88,7 +88,7 @@ def multi_metropolis(n_simulations, n_iterations, T, n, c_matrix):
         spins = random_spins(n)
 
         # run metropolis
-        _, list_avg_magnetisation[i], list_sus[i], spins_timeseries = metropolis(spins, n_iterations, T, c_matrix) 
+        _, list_avg_magnetisation[i], list_sus[i], spins_timeseries = metropolis(spins, n_iterations, T, c_matrix, burn_in) 
 
     mean_magnet = np.mean(list_avg_magnetisation)
     std_magnet = np.std(list_avg_magnetisation)
@@ -99,7 +99,7 @@ def multi_metropolis(n_simulations, n_iterations, T, n, c_matrix):
     return mean_magnet, std_magnet, mean_sus, std_sus
     
 @njit
-def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, c_matrix=np.array):
+def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, c_matrix:np.array, burn_in:int):
     """Runs metropolis simulations for every temperature in a list of temperatures."""
     n_temp = len(T_list)
 
@@ -108,7 +108,7 @@ def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, 
     means_sus = np.zeros(n_temp)
     stds_sus = np.zeros(n_temp)
     for i, T in enumerate(T_list):
-        means_mag[i], stds_mag[i], means_sus[i], stds_sus[i] = multi_metropolis(n_simulations, n_iterations, T, n, c_matrix)
+        means_mag[i], stds_mag[i], means_sus[i], stds_sus[i] = multi_metropolis(n_simulations, n_iterations, T, n, c_matrix, burn_in)
 
     return [means_mag, stds_mag, means_sus, stds_sus]
 
