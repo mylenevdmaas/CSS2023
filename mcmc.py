@@ -10,8 +10,7 @@ def conn_matrix_basic(n:int):
     return J
 
 @njit
-def mean_matrix(mean:float):
-    n = 10
+def mean_matrix(n:int, mean:float):
     J_tri = np.tril(np.random.uniform(mean - 0.1, mean + 0.1, size=(n, n)), -1)
     J = np.zeros((n,n)) + J_tri + J_tri.T
     return J
