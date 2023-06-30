@@ -128,7 +128,7 @@ def multi_metropolis_diff_connectivity(n_simulations:int, n_iterations:int, T:fl
     return mean_magnet, std_magnet, mean_sus, std_sus
 
 @njit
-def multi_metropolis_basic(n_simulations:int, n_iterations:int, T:float, n:int, c_matrix:np.array=None, c_matrix_fun=conn_matrix_basic, burn_in:int=1000):
+def multi_metropolis_basic(n_simulations:int, n_iterations:int, T:float, n:int, c_matrix_fun=conn_matrix_basic, burn_in:int=1000):
     """Runs n_simulations runs of the metropolis algorithm."""
 
     # c_matrix_fun = c_matrix_fun_dict[c_matrix_fun]
@@ -140,8 +140,7 @@ def multi_metropolis_basic(n_simulations:int, n_iterations:int, T:float, n:int, 
 
         # start with random spin config and J
         spins = random_spins(n)
-        if c_matrix != None:
-            c_matrix = c_matrix_fun(n)
+        c_matrix = c_matrix_fun(n)
 
         # run metropolis
         _, list_avg_magnetisation[i], list_sus[i], _ = metropolis(spins, n_iterations, T, c_matrix, burn_in) 
@@ -155,7 +154,7 @@ def multi_metropolis_basic(n_simulations:int, n_iterations:int, T:float, n:int, 
     return mean_magnet, std_magnet, mean_sus, std_sus
     
 @njit
-def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, c_matrix:np.array=None, c_matrix_fun=conn_matrix_basic, burn_in:int=1000):
+def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, c_matrix_fun=conn_matrix_basic, burn_in:int=1000):
     """Runs metropolis simulations for every temperature in a list of temperatures."""
     n_temp = len(T_list)
 
@@ -164,7 +163,21 @@ def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, 
     means_sus = np.zeros(n_temp)
     stds_sus = np.zeros(n_temp)
     for i, T in enumerate(T_list):
-        means_mag[i], stds_mag[i], means_sus[i], stds_sus[i] = multi_metropolis_basic(n_simulations, n_iterations, T, n, c_matrix, c_matrix_fun, burn_in)
+        means_mag[i], stds_mag[i], means_sus[i], stds_sus[i] = multi_metropolis_basic(n_simulations, n_iterations, T, n, c_matrix_fun, burn_in)
+
+    return [means_mag, stds_mag, means_sus, stds_sus]
+
+@njit
+def run_simulation_diff_connectivity(n_simulations:int, n_iterations:int, T_list:np.array, n:int, c_matrix_fun=conn_matrix_basic, c_matrix_arg:float=0.5, burn_in:int=1000):
+    """Runs metropolis simulations for every temperature in a list of temperatures."""
+    n_temp = len(T_list)
+
+    means_mag = np.zeros(n_temp)
+    stds_mag = np.zeros(n_temp)
+    means_sus = np.zeros(n_temp)
+    stds_sus = np.zeros(n_temp)
+    for i, T in enumerate(T_list):
+        means_mag[i], stds_mag[i], means_sus[i], stds_sus[i] = multi_metropolis_diff_connectivity(n_simulations, n_iterations, T, n, c_matrix_fun, c_matrix_arg, burn_in)
 
     return [means_mag, stds_mag, means_sus, stds_sus]
 
