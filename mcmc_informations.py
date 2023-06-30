@@ -1,22 +1,22 @@
 import numpy as np
 from numba import njit
 import matplotlib.pyplot as plt
-import itertools
 
 @njit
-def conn_matrix_basic(n):
+def conn_matrix_basic(n:int):
     """Returns nxn symmatric matrix for J with random numbers in [0,1]."""
     J_tri = np.tril(np.random.uniform(0, 1, size=(n, n)), -1)
     J = np.zeros((n,n)) + J_tri + J_tri.T
     return J
 
-def mean_matrix(n, mean):
+@njit
+def mean_matrix(n:int, mean:float):
     J_tri = np.tril(np.random.uniform(mean - 0.1, mean + 0.1, size=(n, n)), -1)
     J = np.zeros((n,n)) + J_tri + J_tri.T
     return J
     
 @njit
-def conn_matrix_norm(n):
+def conn_matrix_norm(n:int):
     """Returns nxn symmatric matrix for J with random numbers in [0,1] from a normal distribution."""
     J_tri = np.tril(np.random.normal(0.5, 0.5, size = (n,n)), -1)
     J = np.zeros((n,n)) + J_tri + J_tri.T
@@ -25,7 +25,7 @@ def conn_matrix_norm(n):
     return J
 
 @njit
-def conn_matrix_power(n):
+def conn_matrix_power(n:int):
     """Returns nxn symmatric matrix for J with random numbers in [0,1] from a powerlaw 
     distribution with exponent 1.4. """
     J_tri = np.tril((1-np.random.power(2.4, size = (n,n))), -1)
@@ -33,21 +33,43 @@ def conn_matrix_power(n):
     return J 
 
 @njit
-def random_spins(n):
+def conn_matrix_fraction_zeros(n:int, fraction:float):
+    """Returns nxn symmatric matrix for J with random numbers in [0,1]."""
+    J_tri = np.tril(np.random.uniform(0, 1, size=(n, n)), -1)
+
+    # set fraction of matrix to zero
+    destruction = np.random.uniform(0,1 , size = (n, n))
+    for i in range(len(J_tri)):
+        J_tri[i][destruction[i] > 1 - fraction] = 0
+
+    J = np.zeros((n,n)) + J_tri + J_tri.T
+    return J
+
+c_matrix_fun_dict = {
+    'basic': conn_matrix_basic,
+    'mean': mean_matrix,
+    'norm': conn_matrix_norm,
+    'power': conn_matrix_power,
+    'zeros': conn_matrix_fraction_zeros
+}
+
+
+@njit
+def random_spins(n:int):
     """Returns array of n spins in random configuration of -1 and 1."""
     values = np.random.randint(0, 2, size=n)
     values[values==0] = -1
     return values
 
 @njit
-def energy_diff(spins:np.array, c_matrix):
+def energy_diff(spins:np.array, c_matrix:np.array):
     """Computes energy difference for flipping one random spin based on J."""
     pos = np.random.randint(0, len(spins))
     delta_E = (spins[pos] * spins * c_matrix[pos]).sum() * 2
     return delta_E, pos
 
 @njit
-def metropolis(spins, n_iterations, T, c_matrix, burn_in):
+def metropolis(spins:np.array, n_iterations:int, T:float, c_matrix:np.array, burn_in:int=1000):
     """Runs one run of the metropolis algorithm with temperature T."""
 
     magnetisation_list = np.zeros(n_iterations)
@@ -80,20 +102,49 @@ def metropolis(spins, n_iterations, T, c_matrix, burn_in):
     return spins, avg_magnetisation, susceptibility, spins_timeseries
 
 @njit
-def multi_metropolis(n_simulations, n_iterations, T, n, c_matrix, burn_in):
+def multi_metropolis_diff_connectivity(n_simulations:int, n_iterations:int, T:float, n:int, c_matrix_fun:str='mean', c_matrix_arg:float=0.5, burn_in:int=1000):
     """Runs n_simulations runs of the metropolis algorithm."""
+
+    c_matrix_fun = c_matrix_fun_dict[c_matrix_fun]
 
     list_avg_magnetisation = np.zeros(n_simulations)
     list_sus = np.zeros(n_simulations)
-    
 
     for i in range(n_simulations):
 
         # start with random spin config and J
         spins = random_spins(n)
+        c_matrix = c_matrix_fun(n, c_matrix_arg)
 
         # run metropolis
-        _, list_avg_magnetisation[i], list_sus[i], spins_timeseries = metropolis(spins, n_iterations, T, c_matrix, burn_in) 
+        _, list_avg_magnetisation[i], list_sus[i], _ = metropolis(spins, n_iterations, T, c_matrix, burn_in) 
+
+    mean_magnet = np.mean(list_avg_magnetisation)
+    std_magnet = np.std(list_avg_magnetisation)
+    
+    mean_sus = np.mean(list_sus)
+    std_sus = np.std(list_sus)
+    
+    return mean_magnet, std_magnet, mean_sus, std_sus
+
+@njit
+def multi_metropolis_basic(n_simulations:int, n_iterations:int, T:float, n:int, c_matrix:np.array=None, c_matrix_fun:str='basic', burn_in:int=1000):
+    """Runs n_simulations runs of the metropolis algorithm."""
+
+    c_matrix_fun = c_matrix_fun_dict[c_matrix_fun]
+
+    list_avg_magnetisation = np.zeros(n_simulations)
+    list_sus = np.zeros(n_simulations)
+
+    for i in range(n_simulations):
+
+        # start with random spin config and J
+        spins = random_spins(n)
+        if not c_matrix:
+            c_matrix = c_matrix_fun(n)
+
+        # run metropolis
+        _, list_avg_magnetisation[i], list_sus[i], _ = metropolis(spins, n_iterations, T, c_matrix, burn_in) 
 
     mean_magnet = np.mean(list_avg_magnetisation)
     std_magnet = np.std(list_avg_magnetisation)
@@ -104,7 +155,7 @@ def multi_metropolis(n_simulations, n_iterations, T, n, c_matrix, burn_in):
     return mean_magnet, std_magnet, mean_sus, std_sus
     
 @njit
-def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, c_matrix:np.array, burn_in:int=1000):
+def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, c_matrix:np.array=None, c_matrix_fun:str='basic', burn_in:int=1000):
     """Runs metropolis simulations for every temperature in a list of temperatures."""
     n_temp = len(T_list)
 
@@ -113,67 +164,9 @@ def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, 
     means_sus = np.zeros(n_temp)
     stds_sus = np.zeros(n_temp)
     for i, T in enumerate(T_list):
-        means_mag[i], stds_mag[i], means_sus[i], stds_sus[i] = multi_metropolis(n_simulations, n_iterations, T, n, c_matrix, burn_in)
+        means_mag[i], stds_mag[i], means_sus[i], stds_sus[i] = multi_metropolis_basic(n_simulations, n_iterations, T, n, c_matrix, c_matrix_fun, burn_in)
 
     return [means_mag, stds_mag, means_sus, stds_sus]
-
-# @njit
-# def count_function(combo, coordinate, spins_timeseries, t, probabilities):
-#     """Counts the number of times a spin combination occurs in a timeseries of spin configurations.
-#     """
-#     [s_j, S_j, S_i] = combo
-#     [i,j] = coordinate
-#     [pSj, psj_Sj, pSj_Si, psj_Sj_Si] = probabilities
-
-#     if spins_timeseries[t-1][j] == S_j:
-#         pSj += 1
-
-#         if spins_timeseries[t-1][i] == S_i:
-#             pSj_Si += 1
-
-#         if spins_timeseries[t][j] == s_j:
-#             psj_Sj += 1
-
-#             if spins_timeseries[t-1][i] == S_i:
-#                 psj_Sj_Si += 1
-        
-#     return [pSj, psj_Sj, pSj_Si, psj_Sj_Si]
-
-def conn_matrix_not_so_basic(n, fraction_of_zeros):
-    """Returns nxn symmatric matrix for J with random numbers in [0,1]."""
-    J_tri = np.tril(np.random.uniform(0, 1, size=(n, n)), -1)
-    J = np.zeros((n,n)) + J_tri + J_tri.T
-
-    f = int(np.floor(fraction_of_zeros*n*(n-1)/2))
-    removed = []
-    for i in range(f):
-        while True:
-            row = np.random.randint(0, n-1)
-            cols = [num for num in range(0, n) if num != row]  # to not include central diagonal
-            col = np.random.choice(cols)
-            entry = [row, col]
-            entry_T = [col, row]
-
-            if entry in removed or entry_T in removed:
-                continue
-        
-            J[row][col] = 0
-            J[col][row] = 0
-
-            removed.append(entry)
-            break
-    return J
-
-# @njit
-# def get_probability(coordinate, spins_timeseries, combos):
-#     """Calculates the probability of all possible spin combinations based on a timeseries of spin configurations."""
-#     count_array = np.zeros((8, 4))
-
-#     for t in range(1, len(spins_timeseries)):
-#         for k, combo in enumerate(combos):
-#             count_array[k] = count_function(combo, coordinate, spins_timeseries, t, count_array[k])
-
-#     return count_array
 
 @njit
 def get_probability(coordinate, spins_timeseries):
@@ -231,6 +224,9 @@ def TE(spins_timeseries, c_matrix):
 
 @njit
 def mutual_info(coordinate, spins_timeseries):
+    """Computes mutual information based on time series for node x and y: I(x;y)."""
+
+    # get time series
     x,y = coordinate
     x_list = spins_timeseries[:,x]
     y_list = spins_timeseries[:,y]
@@ -238,6 +234,7 @@ def mutual_info(coordinate, spins_timeseries):
     count_array = np.zeros((4,3))
     i = 0
 
+    # count occurences for each of 4 possible states
     for x in [-1,1]:
         px = (x_list==x).sum()
         for y in [-1,1]:
@@ -246,17 +243,21 @@ def mutual_info(coordinate, spins_timeseries):
             count_array[i] = np.array([px, py, pxy])
             i += 1
     
+    # delete all rows with zero and convert to probabilities
     count_array = count_array[(count_array[:,2] != 0) & (count_array[:,1] != 0) & (count_array[:,0] != 0)]
     prob = (count_array / len(spins_timeseries)).T
 
+    # compute mutual information
     m_i = np.sum(prob[2] * np.log(prob[2] / (prob[0] * prob[1])))
 
     return m_i
 
 @njit
 def con_mutual_info(coordinate, spins_timeseries):
-    x, y, z = coordinate
+    """Computes conditional mutual information based on time series with z as condition: I(x;y|z)"""
 
+    # get time series
+    x, y, z = coordinate
     x_list = spins_timeseries[:,x]
     y_list = spins_timeseries[:,y]
     z_list = spins_timeseries[:,z]
@@ -264,6 +265,7 @@ def con_mutual_info(coordinate, spins_timeseries):
     count_array = np.zeros((8,4))
     i = 0
 
+    # count occurences for all 8 possible states
     for z in [-1,1]:
         pz = (z_list==z).sum()
         for x in [-1,1]:
@@ -286,40 +288,12 @@ def con_mutual_info(coordinate, spins_timeseries):
     return cmi
 
 @njit
-def II_old(spins_timeseries, c_matrix, pairs):
-
-    n = len(c_matrix)
-    ii_total = 0
-
-    # get all connected pairs
-    # connected_pairs = np.stack(np.triu(c_matrix).nonzero(), axis=1)
-
-    # loop over pairs
-    for pair in pairs:
-
-        x,y = pair
-
-        # compute mutual info for pair
-        m_i = mutual_info(pair, spins_timeseries)
-
-        # loop over triplets with these pairs
-        for z in range(y+1,n):
-
-            # is z connected to x and y?
-            # if np.array([x,z]).isin(connected_pairs) and np.array([y,z]).isin(connected_pairs):
-
-            # compute conditional mutial info
-            cm_i = con_mutual_info(np.array([x,y,z]), spins_timeseries)
-
-            # add interaction information to total
-            ii_total += (m_i - cm_i)
-
-    return ii_total
-
-@njit
 def II(spins_timeseries, c_matrix):
+    """
+    Computes interaction information based on mutual information and conditional 
+    mutual information for all connected triplets in the network.
+    """
 
-    # n = len(c_matrix)
     ii_total = 0
 
     # get all connected pairs
@@ -348,9 +322,6 @@ def II(spins_timeseries, c_matrix):
             ii_total += (m_i - cm_i)
 
     return ii_total
-
-def get_pairs(n):
-    return np.array(list(itertools.combinations(range(n), r=2)))
 
 def plot_results(sim_data, T_list, sim_name, save=False):
     """Plots the results of a full simulation."""
