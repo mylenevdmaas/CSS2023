@@ -110,14 +110,14 @@ def multi_metropolis(n_simulations, n_iterations, T, n, fraction_zeros, input_ma
     list_model_corr = []
 
     #c_matrix = conn_matrix_basic(n)
-    c_matrix = input_matrix 
+    #c_matrix = input_matrix 
 
     for i in range(n_simulations):
 
         # start with random spin config and J
         spins = random_spins(n)
         #c_matrix = conn_matrix_basic(n)
-        #c_matrix = conn_matrix_not_so_basic(n, fraction_zeros)
+        c_matrix = conn_matrix_not_so_basic(n, fraction_zeros)
         #print(c_matrix)
 
         # run metropolis
