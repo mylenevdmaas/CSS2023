@@ -11,6 +11,23 @@ def conn_matrix_basic(n):
     return J
 
 @njit
+def conn_matrix_norm(n):
+    """Returns nxn symmatric matrix for J with random numbers in [0,1] from a normal distribution."""
+    J_tri = np.tril(np.random.normal(0.5, 0.5, size = (n,n)), -1)
+    J = np.zeros((n,n)) + J_tri + J_tri.T
+    J -=  np.min(J)
+    J /= np.max(J)
+    return J
+
+@njit
+def conn_matrix_power(n):
+    """Returns nxn symmatric matrix for J with random numbers in [0,1] from a powerlaw 
+    distribution with exponent 1.4. """
+    J_tri = np.tril((1-np.random.power(2.4, size = (n,n))), -1)
+    J = np.zeros((n,n)) + J_tri + J_tri.T
+    return J 
+    
+@njit
 def random_spins(n):
     """Returns array of n spins in random configuration of -1 and 1."""
     values = np.random.randint(0, 2, size=n)
