@@ -1,10 +1,10 @@
-# CSS2023
+# CSS2023 Group 12
 
 Welcome to our git repository with all code to create the plots in our presentation about the application of the Ising model on brain regions and some more side quests ;)
 
 ## Getting started
 
-The main code for our project is written in `mcmc.py` and code for running the experiments can be found in `random_networks.ipynb`. Install the required packages with
+The main code for our project is written in `mcmc.py` and code for running the main experiments can be found in `random_networks.ipynb`. Install the required packages with
 ```
 pip install -r requirements.txt
 ```
@@ -33,8 +33,7 @@ And the following files:
     Using NILearn for plotting and animating the Ising model with DTI data using actual coordinates of the brain regions.
 * `interaction_info_sidequest.ipynb`
     As transfer entropy only measures information flow, we wanted to implement another measure called interaction information. We did end up implementing it in `mcmc.py` but did not have enough time to fully analyse our model with this measure anymore so we focused on transfer entropy and this became yet another sidequest.
-* `3Dvisualization_sidequest.ipynb`
-    Stranded nice-to-have sidequest on visualizing the brain regions in 3D. Animating the orientation of the spins in 2D had more priority.
 
 
+And a little preview of our animations ;)
 ![image](Results/animation_T=100.gif)
