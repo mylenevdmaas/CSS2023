@@ -99,7 +99,7 @@ def multi_metropolis(n_simulations, n_iterations, T, n, c_matrix, burn_in):
     return mean_magnet, std_magnet, mean_sus, std_sus
     
 @njit
-def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, c_matrix:np.array, burn_in:int):
+def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, c_matrix:np.array, burn_in:int=1000):
     """Runs metropolis simulations for every temperature in a list of temperatures."""
     n_temp = len(T_list)
 
