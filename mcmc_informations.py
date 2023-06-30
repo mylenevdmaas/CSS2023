@@ -364,7 +364,7 @@ def plot_results(sim_data, T_list, sim_name, save=False):
     plt.grid()
 
     if save:
-        plt.savefig(f'{sim_name}_M.png', bbox_inches='tight')
+        plt.savefig(f'Results/{sim_name}_M.png', bbox_inches='tight')
     plt.show()    
     
     lower_bound = np.subtract(means_sus, stds_sus)
@@ -378,5 +378,5 @@ def plot_results(sim_data, T_list, sim_name, save=False):
     plt.vlines(T_list[idx],  min(sim_data[2]), max(sim_data[2])*1.2, linestyles='dashed', color = 'r')
 
     if save:
-        plt.savefig(f'{sim_name}_sus.png', bbox_inches='tight')
+        plt.savefig(f'Results/{sim_name}_sus.png', bbox_inches='tight')
     plt.show()
