@@ -36,6 +36,7 @@ And the following files:
 
 
 And a little preview of our animations ;)
+
 ![image](Results/animation_T_more_than_tc.gif)
 
 #### References
