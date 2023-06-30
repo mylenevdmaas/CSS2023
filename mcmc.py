@@ -11,6 +11,7 @@ def conn_matrix_basic(n:int):
 
 @njit
 def mean_matrix(n:int, mean:float):
+    """Returns nxn symmatrix matrix for J from normal distribution with given mean."""
     J_tri = np.tril(np.random.uniform(mean - 0.1, mean + 0.1, size=(n, n)), -1)
     J = np.zeros((n,n)) + J_tri + J_tri.T
     return J
@@ -44,15 +45,6 @@ def conn_matrix_fraction_zeros(n:int, fraction:float):
 
     J = np.zeros((n,n)) + J_tri + J_tri.T
     return J
-
-# c_matrix_fun_dict = {
-#     'basic': conn_matrix_basic,
-#     'mean': mean_matrix,
-#     'norm': conn_matrix_norm,
-#     'power': conn_matrix_power,
-#     'zeros': conn_matrix_fraction_zeros
-# }
-
 
 @njit
 def random_spins(n:int):
@@ -360,9 +352,7 @@ def plot_results(sim_data, T_list, sim_name, save=False, figsize=[6,4]):
     plt.xlabel('T')
     plt.ylabel(r'$\chi$')
     plt.grid()
-    # idx = np.argmax(sim_data[2])
-    # plt.vlines(T_list[idx],  min(sim_data[2]), max(sim_data[2])*1.2, linestyles='dashed', color = 'r')
-
+    
     if save:
         plt.savefig(f'Results/{sim_name}_sus.png', bbox_inches='tight')
     plt.show()
