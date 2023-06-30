@@ -36,4 +36,4 @@ And the following files:
 
 
 And a little preview of our animations ;)
-![image](Results/animation_T=100.gif)
+![image](Results/animation_T_more_than_tc.gif)
