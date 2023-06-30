@@ -26,7 +26,7 @@ def conn_matrix_power(n):
     J_tri = np.tril((1-np.random.power(2.4, size = (n,n))), -1)
     J = np.zeros((n,n)) + J_tri + J_tri.T
     return J 
-    
+
 @njit
 def random_spins(n):
     """Returns array of n spins in random configuration of -1 and 1."""
@@ -86,7 +86,6 @@ def multi_metropolis(n_simulations, n_iterations, T, n, c_matrix):
 
         # start with random spin config and J
         spins = random_spins(n)
-        # c_matrix = conn_matrix_basic(n)
 
         # run metropolis
         _, list_avg_magnetisation[i], list_sus[i], spins_timeseries = metropolis(spins, n_iterations, T, c_matrix) 
