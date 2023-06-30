@@ -37,3 +37,7 @@ And the following files:
 
 And a little preview of our animations ;)
 ![image](Results/animation_T=100.gif)
+
+
+#### References
+Popiel, Khajehabdollahi, S., Abeyasinghe, P. M., Riganello, F., Nichols, E. S., Owen, A. M., & Soddu, A. (2020). The Emergence of Integrated Information, Complexity, and “Consciousness” at Criticality. Entropy (Basel, Switzerland), 22(3), 339–. https://doi.org/10.3390/e22030339
