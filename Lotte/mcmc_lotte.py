@@ -8,7 +8,23 @@ def conn_matrix_basic(n):
     J_tri = np.tril(np.random.uniform(0, 1, size=(n, n)), -1)
     J = np.zeros((n,n)) + J_tri + J_tri.T
     return J
-
+@njit
+def conn_matrix_norm(n):
+    """Returns nxn symmatric matrix for J with random numbers in [0,1] from a normal distribution."""
+    J_tri = np.tril(np.random.normal(0.5, 0.5, size = (n,n)), -1)
+    J = np.zeros((n,n)) + J_tri + J_tri.T
+    J -=  np.min(J)
+    J /= np.max(J)
+    return J
+@njit
+def conn_matrix_power(n):
+    """Returns nxn symmatric matrix for J with random numbers in [0,1] from a powerlaw 
+    distribution with exponent 1.4. """
+    J_tri = np.tril((1-np.random.power(2.4, size = (n,n))), -1)
+    J = np.zeros((n,n)) + J_tri + J_tri.T
+    # J -=  np.min(J)
+    # J /= np.max(J)
+    return J   
 @njit
 def random_spins(n):
     """Returns array of n spins in random configuration of -1 and 1."""
@@ -90,32 +106,14 @@ def run_simulation(n_simulations:int, n_iterations:int, T_list:np.array, n:int, 
     stds_mag = np.zeros(n_temp)
     means_sus = np.zeros(n_temp)
     stds_sus = np.zeros(n_temp)
+    # low_sus = np.zeros(n_temp)
+    # up_sus = np.zeros(n_temp)
     for i, T in enumerate(T_list):
         means_mag[i], stds_mag[i], means_sus[i], stds_sus[i] = multi_metropolis(n_simulations, n_iterations, T, n, c_matrix)
 
+
     return [means_mag, stds_mag, means_sus, stds_sus]
 
-# @njit
-# def count_function(combo, coordinate, spins_timeseries, t, probabilities):
-#     """Counts the number of times a spin combination occurs in a timeseries of spin configurations.
-#     """
-#     [s_j, S_j, S_i] = combo
-#     [i,j] = coordinate
-#     [pSj, psj_Sj, pSj_Si, psj_Sj_Si] = probabilities
-
-#     if spins_timeseries[t-1][j] == S_j:
-#         pSj += 1
-
-#         if spins_timeseries[t-1][i] == S_i:
-#             pSj_Si += 1
-
-#         if spins_timeseries[t][j] == s_j:
-#             psj_Sj += 1
-
-#             if spins_timeseries[t-1][i] == S_i:
-#                 psj_Sj_Si += 1
-        
-#     return [pSj, psj_Sj, pSj_Si, psj_Sj_Si]
 
 def conn_matrix_not_so_basic(n, fraction_of_zeros):
     """Returns nxn symmatric matrix for J with random numbers in [0,1]."""
@@ -142,16 +140,6 @@ def conn_matrix_not_so_basic(n, fraction_of_zeros):
             break
     return J
 
-# @njit
-# def get_probability(coordinate, spins_timeseries, combos):
-#     """Calculates the probability of all possible spin combinations based on a timeseries of spin configurations."""
-#     count_array = np.zeros((8, 4))
-
-#     for t in range(1, len(spins_timeseries)):
-#         for k, combo in enumerate(combos):
-#             count_array[k] = count_function(combo, coordinate, spins_timeseries, t, count_array[k])
-
-#     return count_array
 
 @njit
 def get_probability(coordinate, spins_timeseries):
