@@ -10,6 +10,11 @@ def conn_matrix_basic(n):
     J = np.zeros((n,n)) + J_tri + J_tri.T
     return J
 
+def mean_matrix(n, mean):
+    J_tri = np.tril(np.random.uniform(mean - 0.1, mean + 0.1, size=(n, n)), -1)
+    J = np.zeros((n,n)) + J_tri + J_tri.T
+    return J
+    
 @njit
 def conn_matrix_norm(n):
     """Returns nxn symmatric matrix for J with random numbers in [0,1] from a normal distribution."""
